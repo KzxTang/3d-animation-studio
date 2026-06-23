@@ -1,178 +1,64 @@
-name: Android 3D Animation Studio CI/CD
+name: 3DAnimationStudio CI/CD
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Build type'
+        description: 'Build variant'
         required: true
         type: choice
         default: 'debug'
         options:
           - debug
           - release
-      upload_artifact:
-        description: 'Upload APK as artifact'
-        required: false
-        type: boolean
-        default: true
 
 env:
   JAVA_VERSION: '17'
-  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-  ANDROID_HOME: /usr/local/lib/android/sdk
-  SDK_COMPILE: 34
-  SDK_BUILD_TOOLS: '34.0.0'
-  NDK_VERSION: '26.2.11394342'
-  CMAKE_VERSION: '3.22.1'
 
 jobs:
-  build-and-package:
-    name: Build & Package APK
-    runs-on: ubuntu-22.04
-    timeout-minutes: 45
-    
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Setup Java JDK ${{ env.JAVA_VERSION }}
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
-      
-      - name: Install Required Android SDK Packages
-        run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
-            "platforms;android-$SDK_COMPILE" \
-            "build-tools;$SDK_BUILD_TOOLS" \
-            "ndk;$NDK_VERSION" \
-            "cmake;$CMAKE_VERSION" \
-            "platform-tools" 2>&1 | tail -20
-      
-      - name: Verify Installed Environment
-        run: |
-          echo "=== Java ===" && java -version
-          echo "=== ANDROID_HOME ===" && echo $ANDROID_HOME
-          ls -d $ANDROID_HOME/platforms/android-* 2>/dev/null || echo "(no platforms)"
-          ls -d $ANDROID_HOME/build-tools/* 2>/dev/null || echo "(no build-tools)"
-          ls -d $ANDROID_HOME/ndk/* 2>/dev/null || echo "(no ndk)"
-      
-      - name: Grant Execute Permission
-        run: chmod +x ./gradlew
-      
-      - name: Create local.properties
-        run: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "ndk.dir=$ANDROID_HOME/ndk/$NDK_VERSION" >> local.properties
-          cat local.properties
-      
-      - name: Setup Gradle Cache
-        uses: actions/cache@v4
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            .gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      
-      - name: Determine Build Type
-        id: build-config
-        run: |
-          BT="${{ github.event.inputs.build_type }}"
-          if [ -z "$BT" ]; then BT="debug"; fi
-          echo "BUILD_VARIANT=$BT" >> $GITHUB_ENV
-          echo "Selected: $BT"
-      
-      - name: Build APK (Debug)
-        if: env.BUILD_VARIANT == 'debug'
-        run: |
-          ./gradlew assembleDebug \
-            --no-daemon \
-            --stacktrace \
-            -Pandroid.injected.signing.store=false \
-            -Pandroid.injected.signing.alias=false
-      
-      - name: Build APK (Release)
-        if: env.BUILD_VARIANT == 'release'
-        run: |
-          ./gradlew assembleRelease \
-            --no-daemon \
-            --stacktrace \
-            -Pandroid.injected.signing.store=false \
-            -Pandroid.injected.signing.alias=false
-      
-      - name: Collect APK Files
-        run: |
-          mkdir -p apk-output
-          find app/build/outputs/apk/ -name "*.apk" -exec cp {} apk-output/ \;
-          ls -lh apk-output/ || echo "No APK files found"
-      
-      - name: Upload APK Artifact
-        if: github.event.inputs.upload_artifact != 'false' || github.event.inputs.upload_artifact == ''
+          gradle-version: '8.5'
+          cache-disabled: false
+
+      - name: Build Debug APK
+        if: github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == ''
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Build Release APK
+        if: github.event.inputs.build_type == 'release'
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: 3DAnimationStudio-${{ env.BUILD_VARIANT }}-${{ github.run_number }}
-          path: apk-output/*.apk
+          name: 3DAnimationStudio-${{ github.run_number }}
+          path: app/build/outputs/apk/**/*.apk
           retention-days: 30
-          compression-level: 6
-      
+
       - name: Build Summary
         run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Type:** ${{ env.BUILD_VARIANT }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Run Number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Build completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run:** #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
-          echo "### Download APK from Artifacts section above" >> $GITHUB_STEP_SUMMARY
-
-  lint-and-test:
-    name: Lint & Test Verification
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    needs: []
-    
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-      
-      - name: Install Required Android SDK Packages
-        run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
-            "platforms;android-$SDK_COMPILE" \
-            "build-tools;$SDK_BUILD_TOOLS" \
-            "ndk;$NDK_VERSION" \
-            "cmake;$CMAKE_VERSION" 2>&1 | tail -15
-      
-      - name: Run Lint
-        continue-on-error: true
-        run: |
-          chmod +x ./gradlew
-          ./gradlew lintDebug --no-daemon --stacktrace
-      
-      - name: Upload Lint Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-report-${{ github.run_number }}
-          path: app/build/reports/lint-results-debug.html
-          retention-days: 7
+          echo "### Download APK from Artifacts section below" >> $GITHUB_STEP_SUMMARY
