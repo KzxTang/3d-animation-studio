@@ -63,29 +63,35 @@ data class Quaternion(var x: Float = 0f, var y: Float = 0f, var z: Float = 0f, v
 }
 
 /**
- * 4x4 矩阵类（非 data class，避免无主构造函数编译错误）
+ * 4x4 矩阵类（非 data class，含 rotate 和 3‑参数 multiply）
  */
 class Mat4 {
     val elements = FloatArray(16) { i -> if (i % 5 == 0) 1f else 0f }
 
-    fun transpose(): Mat4 {
-        val result = Mat4()
-        for (i in 0..3) for (j in 0..3) result.elements[j * 4 + i] = elements[i * 4 + j]
-        return result
-    }
-
     fun translate(v: Vec3): Mat4 {
-        val m = Mat4()
-        for (i in 0..15) m.elements[i] = elements[i]
+        val m = this.copyElements()
         m.elements[12] += v.x; m.elements[13] += v.y; m.elements[14] += v.z
         return m
     }
 
     fun scale(s: Vec3): Mat4 {
-        val m = Mat4()
-        for (i in 0..15) m.elements[i] = elements[i]
+        val m = this.copyElements()
         m.elements[0] *= s.x; m.elements[5] *= s.y; m.elements[10] *= s.z
         return m
+    }
+
+    /** 乘以四元数旋转矩阵并返回新 Mat4 */
+    fun rotate(q: Quaternion): Mat4 {
+        val xx = q.x * q.x; val yy = q.y * q.y; val zz = q.z * q.z
+        val xy = q.x * q.y; val xz = q.x * q.z; val yz = q.y * q.z
+        val wx = q.w * q.x; val wy = q.w * q.y; val wz = q.w * q.z
+
+        val r = Mat4()
+        r.elements[0] = 1f - 2f * (yy + zz); r.elements[1] = 2f * (xy + wz);  r.elements[2] = 2f * (xz - wy)
+        r.elements[4] = 2f * (xy - wz);   r.elements[5] = 1f - 2f * (xx + zz); r.elements[6] = 2f * (yz + wx)
+        r.elements[8] = 2f * (xz + wy);   r.elements[9] = 2f * (yz - wx);   r.elements[10] = 1f - 2f * (xx + yy)
+
+        return multiply(this, r)
     }
 
     fun perspective(fovY: Float, aspect: Float, near: Float, far: Float): Mat4 {
@@ -114,7 +120,14 @@ class Mat4 {
 
     fun toFloatArray(): FloatArray = elements.copyOf()
 
+    private fun copyElements(): Mat4 {
+        val m = Mat4()
+        for (i in 0..15) m.elements[i] = elements[i]
+        return m
+    }
+
     companion object {
+        /** 2 参数 multiply —— 用于 rotate() 内部调用 */
         fun multiply(a: Mat4, b: Mat4): Mat4 {
             val out = Mat4()
             for (i in 0..3) for (j in 0..3) {
@@ -123,6 +136,15 @@ class Mat4 {
                 out.elements[i + j * 4] = sum
             }
             return out
+        }
+
+        /** 3 参数 multiply —— 兼容 GLRenderEngine 旧代码，将结果写入 out */
+        fun multiply(a: Mat4, b: Mat4, out: Mat4) {
+            for (i in 0..3) for (j in 0..3) {
+                var sum = 0f
+                for (k in 0..3) sum += a.elements[i + k * 4] * b.elements[k + j * 4]
+                out.elements[i + j * 4] = sum
+            }
         }
     }
 }

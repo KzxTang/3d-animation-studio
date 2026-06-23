@@ -148,6 +148,7 @@ class Shader {
 
     fun setUniform(name: String, value: Float) { GLES30.glUniform1f(getUniformLocation(name), value) }
     fun setUniform(name: String, value: Int) { GLES30.glUniform1i(getUniformLocation(name), value) }
+    fun setUniform(name: String, value: Boolean) { GLES30.glUniform1i(getUniformLocation(name), if (value) 1 else 0) }
     fun setUniform3f(name: String, x: Float, y: Float, z: Float) { GLES30.glUniform3f(getUniformLocation(name), x, y, z) }
     fun setUniform4f(name: String, x: Float, y: Float, z: Float, w: Float) { GLES30.glUniform4f(getUniformLocation(name), x, y, z, w) }
     fun setUniformMat4(name: String, matrix: Mat4) { GLES30.glUniformMatrix4fv(getUniformLocation(name), 1, false, matrix.toFloatArray(), 0) }
