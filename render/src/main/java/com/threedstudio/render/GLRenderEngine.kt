@@ -11,6 +11,9 @@ class GLRenderEngine {
     private var shader: Shader? = null
     private var isInitialized = false
 
+    // 异步加载队列：在主线程创建，渲染线程上传GPU
+    private val pendingMeshes = mutableListOf<Pair<SceneObject, MeshData>>()
+
     var msaaLevel = 2
     var shadowsEnabled = true
     var shadowMapResolution = 1024
@@ -44,8 +47,31 @@ class GLRenderEngine {
         camera.setAspectRatio(width, height)
     }
 
+    /**
+     * 安全添加模型：在主线程调用，数据将在下一帧渲染前上传到GPU
+     */
+    fun queueSceneObject(obj: SceneObject, meshData: MeshData) {
+        synchronized(pendingMeshes) {
+            pendingMeshes.add(Pair(obj, meshData))
+        }
+    }
+
     fun renderFrame() {
         if (!isInitialized) init()
+
+        // 处理待加载的模型（在GL线程安全上传GPU数据）
+        synchronized(pendingMeshes) {
+            if (pendingMeshes.isNotEmpty()) {
+                for ((obj, meshData) in pendingMeshes) {
+                    val gpuMesh = GpuMesh()
+                    gpuMesh.upload(meshData)
+                    obj.gpuMesh = gpuMesh
+                    sceneObjects.add(obj)
+                }
+                pendingMeshes.clear()
+            }
+        }
+
         GLES30.glClearColor(0.12f, 0.12f, 0.14f, 1.0f)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
 
@@ -70,7 +96,7 @@ class GLRenderEngine {
             s.setUniform("u_lights[$i].type", light.type.value)
         }
 
-        for (obj in sceneObjects) {
+        for (obj in sceneObjects.toList()) {
             if (obj.visible) renderSceneObject(obj, s)
         }
     }
@@ -106,6 +132,7 @@ class GLRenderEngine {
         shader?.delete(); shader = null
         for (obj in sceneObjects) obj.gpuMesh?.delete()
         sceneObjects.clear()
+        synchronized(pendingMeshes) { pendingMeshes.clear() }
         isInitialized = false
     }
 }
