@@ -12,7 +12,6 @@ data class Vec3(var x: Float = 0f, var y: Float = 0f, var z: Float = 0f) {
     fun length() = sqrt(x * x + y * y + z * z)
     fun normalize(): Vec3 { val len = length(); return if (len > 1e-8f) this / len else ZERO }
     fun lerp(target: Vec3, t: Float) = Vec3(x + (target.x - x) * t, y + (target.y - y) * t, z + (target.z - z) * t)
-    fun copy() = Vec3(x, y, z)
     companion object {
         val ZERO = Vec3(0f, 0f, 0f)
         val UP = Vec3(0f, 1f, 0f)
@@ -21,7 +20,6 @@ data class Vec3(var x: Float = 0f, var y: Float = 0f, var z: Float = 0f) {
 }
 
 data class Color(var r: Float = 1f, var g: Float = 1f, var b: Float = 1f, var a: Float = 1f) {
-    fun copy() = Color(r, g, b, a)
     companion object {
         val WHITE = Color(1f, 1f, 1f, 1f)
         val BLACK = Color(0f, 0f, 0f, 1f)
@@ -62,35 +60,27 @@ data class Quaternion(var x: Float = 0f, var y: Float = 0f, var z: Float = 0f, v
     }
 }
 
-/**
- * 4x4 矩阵类（非 data class，含 rotate 和 3‑参数 multiply）
- */
 class Mat4 {
     val elements = FloatArray(16) { i -> if (i % 5 == 0) 1f else 0f }
 
     fun translate(v: Vec3): Mat4 {
-        val m = this.copyElements()
+        val m = copyElements()
         m.elements[12] += v.x; m.elements[13] += v.y; m.elements[14] += v.z
         return m
     }
-
     fun scale(s: Vec3): Mat4 {
-        val m = this.copyElements()
+        val m = copyElements()
         m.elements[0] *= s.x; m.elements[5] *= s.y; m.elements[10] *= s.z
         return m
     }
-
-    /** 乘以四元数旋转矩阵并返回新 Mat4 */
     fun rotate(q: Quaternion): Mat4 {
         val xx = q.x * q.x; val yy = q.y * q.y; val zz = q.z * q.z
         val xy = q.x * q.y; val xz = q.x * q.z; val yz = q.y * q.z
         val wx = q.w * q.x; val wy = q.w * q.y; val wz = q.w * q.z
-
         val r = Mat4()
         r.elements[0] = 1f - 2f * (yy + zz); r.elements[1] = 2f * (xy + wz);  r.elements[2] = 2f * (xz - wy)
         r.elements[4] = 2f * (xy - wz);   r.elements[5] = 1f - 2f * (xx + zz); r.elements[6] = 2f * (yz + wx)
         r.elements[8] = 2f * (xz + wy);   r.elements[9] = 2f * (yz - wx);   r.elements[10] = 1f - 2f * (xx + yy)
-
         return multiply(this, r)
     }
 
@@ -127,7 +117,6 @@ class Mat4 {
     }
 
     companion object {
-        /** 2 参数 multiply —— 用于 rotate() 内部调用 */
         fun multiply(a: Mat4, b: Mat4): Mat4 {
             val out = Mat4()
             for (i in 0..3) for (j in 0..3) {
@@ -137,8 +126,6 @@ class Mat4 {
             }
             return out
         }
-
-        /** 3 参数 multiply —— 兼容 GLRenderEngine 旧代码，将结果写入 out */
         fun multiply(a: Mat4, b: Mat4, out: Mat4) {
             for (i in 0..3) for (j in 0..3) {
                 var sum = 0f
