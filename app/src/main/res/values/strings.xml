@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">3D Animation Studio</string>
+    <string name="menu_file">文件</string>
+    <string name="menu_edit">编辑</string>
+    <string name="menu_view">视图</string>
+    <string name="menu_model">模型</string>
+    <string name="menu_animation">动画</string>
+    <string name="menu_render">渲染</string>
+    <string name="menu_help">帮助</string>
+    <string name="import_model">导入模型</string>
+    <string name="export_video">导出视频</string>
+    <string name="viewport_3d">3D 视口</string>
+    <string name="timeline">时间轴</string>
+    <string name="hierarchy">场景层级</string>
+    <string name="inspector">属性面板</string>
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="stop">停止</string>
+    <string name="loop">循环</string>
+    <string name="transform">变换</string>
+    <string name="position_x">位置 X</string>
+    <string name="position_y">位置 Y</string>
+    <string name="position_z">位置 Z</string>
+    <string name="rotation_x">旋转 X</string>
+    <string name="rotation_y">旋转 Y</string>
+    <string name="rotation_z">旋转 Z</string>
+    <string name="scale_x">缩放 X</string>
+    <string name="scale_y">缩放 Y</string>
+    <string name="scale_z">缩放 Z</string>
+    <string name="camera_free">自由漫游</string>
+    <string name="camera_orbit">轨道环绕</string>
+    <string name="light_ambient">环境光</string>
+    <string name="light_directional">平行光</string>
+    <string name="light_point">点光源</string>
+    <string name="light_spot">聚光灯</string>
+</resources>
