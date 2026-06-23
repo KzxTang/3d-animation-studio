@@ -71,8 +71,8 @@ class RenderExporter(
                 
                 // 配置MediaCodec编码器
                 val mimeType = when (settings.format) {
-                    ExportFormat.MP4 -> MediaFormat.MIME_TYPE_VIDEO_AVC // H.264
-                    ExportFormat.MOV -> MediaFormat.MIME_TYPE_VIDEO_HEVC // H.265
+                    ExportFormat.MP4 -> MediaFormat.MIMETYPE_VIDEO_AVC // H.264
+                    ExportFormat.MOV -> MediaFormat.MIMETYPE_VIDEO_HEVC // H.265
                 }
                 
                 val mediaFormat = MediaFormat.createVideoFormat(mimeType, settings.width, settings.height).apply {
