@@ -6,9 +6,6 @@ import android.graphics.Bitmap
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/**
- * 网格数据CPU端表示
- */
 class MeshData(
     val vertices: FloatArray,
     val normals: FloatArray,
@@ -21,10 +18,6 @@ class MeshData(
     val indexCount: Int get() = indices.size
 }
 
-/**
- * GPU端网格资源管理 (VAO/VBO/EBO/Texture)
- * 合并了之前冲突的 companion object 重复声明
- */
 class GpuMesh {
     private var vao: Int = 0
     private var vboVertices: Int = 0
@@ -36,15 +29,9 @@ class GpuMesh {
 
     companion object {
         fun createQuad(): GpuMesh {
-            val vertices = floatArrayOf(
-                -1f, -1f, 0f, 1f, -1f, 0f, 1f, 1f, 0f, -1f, 1f, 0f
-            )
-            val normals = floatArrayOf(
-                0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f
-            )
-            val texCoords = floatArrayOf(
-                0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f
-            )
+            val vertices = floatArrayOf(-1f, -1f, 0f, 1f, -1f, 0f, 1f, 1f, 0f, -1f, 1f, 0f)
+            val normals = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f)
+            val texCoords = floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f)
             val indices = shortArrayOf(0, 1, 2, 0, 2, 3)
             val mesh = GpuMesh()
             mesh.upload(MeshData(vertices, normals, texCoords, indices))
@@ -60,9 +47,7 @@ class GpuMesh {
 
         val vboArray = IntArray(3)
         GLES30.glGenBuffers(3, vboArray, 0)
-        vboVertices = vboArray[0]
-        vboNormals = vboArray[1]
-        vboTexCoords = vboArray[2]
+        vboVertices = vboArray[0]; vboNormals = vboArray[1]; vboTexCoords = vboArray[2]
 
         uploadBuffer(vboVertices, meshData.vertices)
         GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 0, 0)
@@ -80,28 +65,17 @@ class GpuMesh {
         GLES30.glGenBuffers(1, eboArray, 0)
         ebo = eboArray[0]
         val indexBuffer = ByteBuffer.allocateDirect(meshData.indices.size * 2)
-            .order(ByteOrder.nativeOrder())
-            .asShortBuffer()
-            .apply {
-                put(meshData.indices)
-                position(0)
-            }
+            .order(ByteOrder.nativeOrder()).asShortBuffer()
+            .apply { put(meshData.indices); position(0) }
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ebo)
-        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, meshData.indices.size * 2,
-            indexBuffer, GLES30.GL_STATIC_DRAW)
-
+        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, meshData.indices.size * 2, indexBuffer, GLES30.GL_STATIC_DRAW)
         indexCount = meshData.indexCount
         GLES30.glBindVertexArray(0)
     }
 
     private fun uploadBuffer(bufferId: Int, data: FloatArray) {
-        val buffer = ByteBuffer.allocateDirect(data.size * 4)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
-            .apply {
-                put(data)
-                position(0)
-            }
+        val buffer = ByteBuffer.allocateDirect(data.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            .apply { put(data); position(0) }
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, bufferId)
         GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, data.size * 4, buffer, GLES30.GL_STATIC_DRAW)
     }
@@ -128,13 +102,9 @@ class GpuMesh {
         }
     }
 
-    fun unbind() {
-        GLES30.glBindVertexArray(0)
-    }
+    fun unbind() { GLES30.glBindVertexArray(0) }
 
-    fun draw() {
-        GLES30.glDrawElements(GLES30.GL_TRIANGLES, indexCount, GLES30.GL_UNSIGNED_SHORT, 0)
-    }
+    fun draw() { GLES30.glDrawElements(GLES30.GL_TRIANGLES, indexCount, GLES30.GL_UNSIGNED_SHORT, 0) }
 
     fun getTextureId(): Int = textureId
 

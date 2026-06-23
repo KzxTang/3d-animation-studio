@@ -9,7 +9,7 @@ class Shader {
 
     companion object {
         private const val TAG = "Shader"
-        val DEFAULT_VERTEX_SRC = """
+        val VERT_SRC = """
             #version 300 es
             precision highp float;
             uniform mat4 u_mvpMatrix;
@@ -30,18 +30,10 @@ class Shader {
             }
         """.trimIndent()
 
-        val DEFAULT_FRAGMENT_SRC = """
+        val FRAG_SRC = """
             #version 300 es
             precision highp float;
-            struct Light {
-                int type;
-                vec3 position;
-                vec3 direction;
-                vec3 color;
-                float intensity;
-                float angle;
-                float range;
-            };
+            struct Light { int type; vec3 position; vec3 direction; vec3 color; float intensity; float angle; float range; };
             uniform vec3 u_cameraPosition;
             uniform vec3 u_ambientColor;
             uniform float u_ambientIntensity;
@@ -57,112 +49,81 @@ class Shader {
             in vec2 v_texCoord;
             out vec4 fragColor;
             
-            vec3 calcDirectionalLight(Light light, vec3 normal, vec3 viewDir, vec3 diffuse) {
-                vec3 lightDir = normalize(-light.direction);
-                float diff = max(dot(normal, lightDir), 0.0);
-                vec3 reflectDir = reflect(-lightDir, normal);
-                float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_materialShininess);
-                return light.color * light.intensity * (diff * diffuse + spec * u_materialSpecular);
+            vec3 calcDir(Light l, vec3 n, vec3 v, vec3 d) {
+                vec3 ld = normalize(-l.direction);
+                float df = max(dot(n, ld), 0.0);
+                vec3 r = reflect(-ld, n);
+                float sp = pow(max(dot(v, r), 0.0), u_materialShininess);
+                return l.color * l.intensity * (df * d + sp * u_materialSpecular);
             }
-            
-            vec3 calcPointLight(Light light, vec3 normal, vec3 viewDir, vec3 diffuse) {
-                vec3 lightDir = normalize(light.position - v_worldPosition);
-                float distance = length(light.position - v_worldPosition);
-                float attenuation = 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance);
-                float diff = max(dot(normal, lightDir), 0.0);
-                vec3 reflectDir = reflect(-lightDir, normal);
-                float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_materialShininess);
-                return light.color * light.intensity * attenuation * (diff * diffuse + spec * u_materialSpecular);
+            vec3 calcPoint(Light l, vec3 n, vec3 v, vec3 d) {
+                vec3 ld = normalize(l.position - v_worldPosition);
+                float dist = length(l.position - v_worldPosition);
+                float att = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
+                float df = max(dot(n, ld), 0.0);
+                vec3 r = reflect(-ld, n);
+                float sp = pow(max(dot(v, r), 0.0), u_materialShininess);
+                return l.color * l.intensity * att * (df * d + sp * u_materialSpecular);
             }
-            
-            vec3 calcSpotLight(Light light, vec3 normal, vec3 viewDir, vec3 diffuse) {
-                vec3 lightDir = normalize(light.position - v_worldPosition);
-                float theta = dot(lightDir, normalize(-light.direction));
-                float epsilon = 0.91 - 0.82;
-                float intensity = clamp((theta - 0.82) / epsilon, 0.0, 1.0);
-                float distance = length(light.position - v_worldPosition);
-                float attenuation = 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance);
-                float diff = max(dot(normal, lightDir), 0.0);
-                vec3 reflectDir = reflect(-lightDir, normal);
-                float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_materialShininess);
-                return light.color * light.intensity * attenuation * intensity * (diff * diffuse + spec * u_materialSpecular);
+            vec3 calcSpot(Light l, vec3 n, vec3 v, vec3 d) {
+                vec3 ld = normalize(l.position - v_worldPosition);
+                float theta = dot(ld, normalize(-l.direction));
+                float eps = 0.91 - 0.82;
+                float inten = clamp((theta - 0.82) / eps, 0.0, 1.0);
+                float dist = length(l.position - v_worldPosition);
+                float att = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
+                float df = max(dot(n, ld), 0.0);
+                vec3 r = reflect(-ld, n);
+                float sp = pow(max(dot(v, r), 0.0), u_materialShininess);
+                return l.color * l.intensity * att * inten * (df * d + sp * u_materialSpecular);
             }
-            
             void main() {
-                vec3 normal = normalize(v_worldNormal);
-                vec3 viewDir = normalize(u_cameraPosition - v_worldPosition);
-                vec3 diffuse = u_hasDiffuseTexture ? texture(u_diffuseTexture, v_texCoord).rgb * u_materialDiffuse.rgb : u_materialDiffuse.rgb;
-                vec3 ambient = u_ambientColor * u_ambientIntensity * diffuse;
-                vec3 totalLight = ambient;
+                vec3 n = normalize(v_worldNormal);
+                vec3 v = normalize(u_cameraPosition - v_worldPosition);
+                vec3 d = u_hasDiffuseTexture ? texture(u_diffuseTexture, v_texCoord).rgb * u_materialDiffuse.rgb : u_materialDiffuse.rgb;
+                vec3 amb = u_ambientColor * u_ambientIntensity * d;
+                vec3 total = amb;
                 for (int i = 0; i < u_lightCount; i++) {
-                    if (u_lights[i].type == 0) {
-                        totalLight += calcDirectionalLight(u_lights[i], normal, viewDir, diffuse);
-                    } else if (u_lights[i].type == 1) {
-                        totalLight += calcPointLight(u_lights[i], normal, viewDir, diffuse);
-                    } else if (u_lights[i].type == 2) {
-                        totalLight += calcSpotLight(u_lights[i], normal, viewDir, diffuse);
-                    }
+                    if (u_lights[i].type == 0) total += calcDir(u_lights[i], n, v, d);
+                    else if (u_lights[i].type == 1) total += calcPoint(u_lights[i], n, v, d);
+                    else if (u_lights[i].type == 2) total += calcSpot(u_lights[i], n, v, d);
                 }
-                fragColor = vec4(totalLight, u_materialDiffuse.a);
+                fragColor = vec4(total, u_materialDiffuse.a);
             }
         """.trimIndent()
     }
 
-    fun createDefaultShader(): Boolean = createShader(DEFAULT_VERTEX_SRC, DEFAULT_FRAGMENT_SRC)
+    fun createDefault(): Boolean = createShader(VERT_SRC, FRAG_SRC)
 
-    fun createShader(vertexSource: String, fragmentSource: String): Boolean {
-        val vertexShader = compileShader(GLES30.GL_VERTEX_SHADER, vertexSource)
-        if (vertexShader == 0) return false
-        val fragmentShader = compileShader(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
-        if (fragmentShader == 0) { GLES30.glDeleteShader(vertexShader); return false }
+    fun createShader(vert: String, frag: String): Boolean {
+        val vs = compile(GLES30.GL_VERTEX_SHADER, vert); if (vs == 0) return false
+        val fs = compile(GLES30.GL_FRAGMENT_SHADER, frag)
+        if (fs == 0) { GLES30.glDeleteShader(vs); return false }
         programId = GLES30.glCreateProgram()
-        if (programId == 0) { GLES30.glDeleteShader(vertexShader); GLES30.glDeleteShader(fragmentShader); return false }
-        GLES30.glAttachShader(programId, vertexShader)
-        GLES30.glAttachShader(programId, fragmentShader)
+        if (programId == 0) { GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs); return false }
+        GLES30.glAttachShader(programId, vs); GLES30.glAttachShader(programId, fs)
         GLES30.glLinkProgram(programId)
-        val linkStatus = IntArray(1)
-        GLES30.glGetProgramiv(programId, GLES30.GL_LINK_STATUS, linkStatus, 0)
-        if (linkStatus[0] == 0) {
-            val log = GLES30.glGetProgramInfoLog(programId); Log.e(TAG, "Link error: $log")
-            GLES30.glDeleteProgram(programId); programId = 0; return false
-        }
-        GLES30.glDeleteShader(vertexShader); GLES30.glDeleteShader(fragmentShader)
-        return true
+        val st = IntArray(1); GLES30.glGetProgramiv(programId, GLES30.GL_LINK_STATUS, st, 0)
+        if (st[0] == 0) { Log.e(TAG, "Link: ${GLES30.glGetProgramInfoLog(programId)}"); GLES30.glDeleteProgram(programId); programId = 0; return false }
+        GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs); return true
     }
 
-    private fun compileShader(type: Int, source: String): Int {
-        val shaderId = GLES30.glCreateShader(type)
-        if (shaderId == 0) return 0
-        GLES30.glShaderSource(shaderId, source)
-        GLES30.glCompileShader(shaderId)
-        val compileStatus = IntArray(1)
-        GLES30.glGetShaderiv(shaderId, GLES30.GL_COMPILE_STATUS, compileStatus, 0)
-        if (compileStatus[0] == 0) {
-            val log = GLES30.glGetShaderInfoLog(shaderId); Log.e(TAG, "Compile error: $log")
-            GLES30.glDeleteShader(shaderId); return 0
-        }
-        return shaderId
+    private fun compile(type: Int, src: String): Int {
+        val id = GLES30.glCreateShader(type); if (id == 0) return 0
+        GLES30.glShaderSource(id, src); GLES30.glCompileShader(id)
+        val st = IntArray(1); GLES30.glGetShaderiv(id, GLES30.GL_COMPILE_STATUS, st, 0)
+        if (st[0] == 0) { Log.e(TAG, "Compile: ${GLES30.glGetShaderInfoLog(id)}"); GLES30.glDeleteShader(id); return 0 }
+        return id
     }
 
     fun use() { GLES30.glUseProgram(programId) }
-
     fun setUniform(name: String, value: Float) { GLES30.glUniform1f(getUniformLocation(name), value) }
     fun setUniform(name: String, value: Int) { GLES30.glUniform1i(getUniformLocation(name), value) }
     fun setUniform(name: String, value: Boolean) { GLES30.glUniform1i(getUniformLocation(name), if (value) 1 else 0) }
     fun setUniform3f(name: String, x: Float, y: Float, z: Float) { GLES30.glUniform3f(getUniformLocation(name), x, y, z) }
     fun setUniform4f(name: String, x: Float, y: Float, z: Float, w: Float) { GLES30.glUniform4f(getUniformLocation(name), x, y, z, w) }
-    fun setUniformMat4(name: String, matrix: Mat4) { GLES30.glUniformMatrix4fv(getUniformLocation(name), 1, false, matrix.toFloatArray(), 0) }
-
-    private fun getUniformLocation(name: String): Int = uniformLocations.getOrPut(name) {
-        GLES30.glGetUniformLocation(programId, name)
-    }
-
-    fun getAttributeLocation(name: String): Int = GLES30.glGetAttribLocation(programId, name)
-
-    fun delete() {
-        if (programId != 0) { GLES30.glDeleteProgram(programId); programId = 0 }
-        uniformLocations.clear()
-    }
-
+    fun setUniformMat4(name: String, matrix: Mat4) { GLES30.glUniformMatrix4fv(getUniformLocation(name), 1, false, matrix.arr(), 0) }
+    private fun getUniformLocation(name: String): Int = uniformLocations.getOrPut(name) { GLES30.glGetUniformLocation(programId, name) }
+    fun delete() { if (programId != 0) { GLES30.glDeleteProgram(programId); programId = 0 }; uniformLocations.clear() }
     fun isReady(): Boolean = programId != 0
 }

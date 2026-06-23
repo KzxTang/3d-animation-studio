@@ -6,9 +6,7 @@ import com.threedstudio.render.core.Mat4
 import com.threedstudio.render.core.Quaternion
 import kotlin.math.*
 
-enum class LightType(val value: Int) {
-    AMBIENT(0), DIRECTIONAL(1), POINT(2), SPOT(3)
-}
+enum class LightType(val value: Int) { AMBIENT(0), DIRECTIONAL(1), POINT(2), SPOT(3) }
 
 data class Light(
     val name: String = "Light",
@@ -40,9 +38,6 @@ class Camera {
     var near: Float = 0.1f
     var far: Float = 1000f
     var aspect: Float = 16f / 9f
-    var depthOfFieldEnabled: Boolean = false
-    var focalDistance: Float = 5f
-    var apertureSize: Float = 0.5f
     var moveSpeed: Float = 5f
     var rotateSpeed: Float = 2f
     var freeYaw: Float = 0f
@@ -73,18 +68,13 @@ class Camera {
 
     fun freeMove(forward: Float, right: Float, upAmount: Float) {
         if (mode != CameraMode.FREE_ROAM) return
-        val forwardDir = getForward()
-        val rightDir = getRight()
-        position = Vec3(position.x + forwardDir.x * forward * moveSpeed,
-                        position.y + forwardDir.y * forward * moveSpeed,
-                        position.z + forwardDir.z * forward * moveSpeed)
-        position = Vec3(position.x + rightDir.x * right * moveSpeed,
-                        position.y + rightDir.y * right * moveSpeed,
-                        position.z + rightDir.z * right * moveSpeed)
-        position = Vec3(position.x + upAmount * moveSpeed,
-                        position.y + upAmount * moveSpeed,
-                        position.z + upAmount * moveSpeed)
-        target = Vec3(position.x + forwardDir.x, position.y + forwardDir.y, position.z + forwardDir.z)
+        val fwd = getForward()
+        val rgt = getRight()
+        val px = position.x + fwd.x * forward * moveSpeed + rgt.x * right * moveSpeed + upAmount * moveSpeed
+        val py = position.y + fwd.y * forward * moveSpeed + rgt.y * right * moveSpeed + upAmount * moveSpeed
+        val pz = position.z + fwd.z * forward * moveSpeed + rgt.z * right * moveSpeed + upAmount * moveSpeed
+        position = Vec3(px, py, pz)
+        target = Vec3(position.x + fwd.x, position.y + fwd.y, position.z + fwd.z)
         needsUpdate = true
     }
 
@@ -99,8 +89,8 @@ class Camera {
         val x = -sin(freeYaw) * cos(freePitch)
         val y = sin(freePitch)
         val z = -cos(freeYaw) * cos(freePitch)
-        val len = sqrt(x * x + y * y + z * z)
-        return if (len > 1e-8f) Vec3(x / len, y / len, z / len) else Vec3.FORWARD
+        val v = Vec3(x, y, z)
+        return v.norm()
     }
 
     fun getRight(): Vec3 {
@@ -120,7 +110,7 @@ class Camera {
             position = Vec3(px, py, pz)
         }
         viewMatrix = Mat4().lookAt(position, target, up)
-        projectionMatrix = Mat4().perspective(fov * PI.toFloat() / 180f, aspect, near, far)
+        projectionMatrix = Mat4().persp(fov * PI.toFloat() / 180f, aspect, near, far)
         needsUpdate = false
     }
 

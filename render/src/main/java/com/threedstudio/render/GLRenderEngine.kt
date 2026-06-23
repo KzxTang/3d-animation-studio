@@ -1,7 +1,6 @@
 package com.threedstudio.render
 
 import android.opengl.GLES30
-import android.view.MotionEvent
 import com.threedstudio.render.core.*
 
 class GLRenderEngine {
@@ -11,26 +10,20 @@ class GLRenderEngine {
 
     private var shader: Shader? = null
     private var isInitialized = false
-    private var viewportWidth = 1920
-    private var viewportHeight = 1080
 
     var msaaLevel = 2
     var shadowsEnabled = true
     var shadowMapResolution = 1024
-    var lodEnabled = true
-    var useInstancedRendering = false
-
     var ambientColor = Color(0.2f, 0.2f, 0.25f)
     var ambientIntensity = 1.0f
 
     fun init() {
         if (isInitialized) return
-        shader = Shader().also { it.createDefaultShader() }
-
+        shader = Shader().also { it.createDefault() }
         if (lights.isEmpty()) {
             lights.add(Light(
                 name = "Sun", type = LightType.DIRECTIONAL,
-                direction = Vec3(0.5f, -1f, 0.3f).normalize(),
+                direction = Vec3(0.5f, -1f, 0.3f).norm(),
                 color = Color(1f, 0.98f, 0.95f), intensity = 1.0f
             ))
             lights.add(Light(
@@ -38,7 +31,6 @@ class GLRenderEngine {
                 color = ambientColor, intensity = ambientIntensity
             ))
         }
-
         GLES30.glEnable(GLES30.GL_DEPTH_TEST)
         GLES30.glEnable(GLES30.GL_CULL_FACE)
         GLES30.glCullFace(GLES30.GL_BACK)
@@ -48,7 +40,6 @@ class GLRenderEngine {
     }
 
     fun setViewport(width: Int, height: Int) {
-        viewportWidth = width; viewportHeight = height
         GLES30.glViewport(0, 0, width, height)
         camera.setAspectRatio(width, height)
     }
@@ -60,8 +51,8 @@ class GLRenderEngine {
 
         val s = shader ?: return
         s.use()
-
         camera.update()
+
         s.setUniformMat4("u_viewMatrix", camera.getViewMatrix())
         s.setUniformMat4("u_projectionMatrix", camera.getProjectionMatrix())
         s.setUniform3f("u_cameraPosition", camera.position.x, camera.position.y, camera.position.z)
@@ -69,6 +60,7 @@ class GLRenderEngine {
         s.setUniform("u_lightCount", lights.size.coerceAtMost(8))
         s.setUniform3f("u_ambientColor", ambientColor.r, ambientColor.g, ambientColor.b)
         s.setUniform("u_ambientIntensity", ambientIntensity)
+
         for ((i, light) in lights.withIndex()) {
             if (i >= 8) break
             s.setUniform3f("u_lights[$i].position", light.position.x, light.position.y, light.position.z)
@@ -84,16 +76,16 @@ class GLRenderEngine {
     }
 
     private fun renderSceneObject(obj: SceneObject, s: Shader) {
-        val modelMatrix = Mat4().translate(obj.position).rotate(obj.rotation).scale(obj.scale)
+        val modelMatrix = Mat4().tr(obj.position).rot(obj.rotation).sc(obj.scale)
         s.setUniformMat4("u_modelMatrix", modelMatrix)
 
         val normalMatrix = Mat4()
-        Mat4.multiply(camera.getViewMatrix(), modelMatrix, normalMatrix)
+        Mat4.mul(camera.getViewMatrix(), modelMatrix, normalMatrix)
         s.setUniformMat4("u_normalMatrix", normalMatrix)
 
         val mvpMatrix = Mat4()
-        Mat4.multiply(camera.getProjectionMatrix(), camera.getViewMatrix(), mvpMatrix)
-        Mat4.multiply(mvpMatrix, modelMatrix, mvpMatrix)
+        Mat4.mul(camera.getProjectionMatrix(), camera.getViewMatrix(), mvpMatrix)
+        Mat4.mul(mvpMatrix, modelMatrix, mvpMatrix)
         s.setUniformMat4("u_mvpMatrix", mvpMatrix)
 
         s.setUniform4f("u_materialDiffuse", obj.materialColor.r, obj.materialColor.g, obj.materialColor.b, obj.materialColor.a)
