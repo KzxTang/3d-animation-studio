@@ -4,13 +4,12 @@ import android.opengl.GLES30
 import android.util.Log
 
 class Shader {
-
     private var programId: Int = 0
     private val uniformLocations = mutableMapOf<String, Int>()
 
     companion object {
         private const val TAG = "Shader"
-        private const val DEFAULT_VERTEX_SRC = """
+        val DEFAULT_VERTEX_SRC = """
             #version 300 es
             precision highp float;
             uniform mat4 u_mvpMatrix;
@@ -19,8 +18,6 @@ class Shader {
             in vec3 a_position;
             in vec3 a_normal;
             in vec2 a_texCoord;
-            in vec4 a_jointIndices;
-            in vec4 a_jointWeights;
             out vec3 v_worldPosition;
             out vec3 v_worldNormal;
             out vec2 v_texCoord;
@@ -32,8 +29,8 @@ class Shader {
                 gl_Position = u_mvpMatrix * vec4(a_position, 1.0);
             }
         """.trimIndent()
-        
-        private const val DEFAULT_FRAGMENT_SRC = """
+
+        val DEFAULT_FRAGMENT_SRC = """
             #version 300 es
             precision highp float;
             struct Light {
@@ -111,112 +108,58 @@ class Shader {
         """.trimIndent()
     }
 
-    fun createDefaultShader(): Boolean {
-        return createShader(DEFAULT_VERTEX_SRC, DEFAULT_FRAGMENT_SRC)
-    }
+    fun createDefaultShader(): Boolean = createShader(DEFAULT_VERTEX_SRC, DEFAULT_FRAGMENT_SRC)
 
     fun createShader(vertexSource: String, fragmentSource: String): Boolean {
         val vertexShader = compileShader(GLES30.GL_VERTEX_SHADER, vertexSource)
         if (vertexShader == 0) return false
-        
         val fragmentShader = compileShader(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
-        if (fragmentShader == 0) {
-            GLES30.glDeleteShader(vertexShader)
-            return false
-        }
-        
+        if (fragmentShader == 0) { GLES30.glDeleteShader(vertexShader); return false }
         programId = GLES30.glCreateProgram()
-        if (programId == 0) {
-            GLES30.glDeleteShader(vertexShader)
-            GLES30.glDeleteShader(fragmentShader)
-            return false
-        }
-        
+        if (programId == 0) { GLES30.glDeleteShader(vertexShader); GLES30.glDeleteShader(fragmentShader); return false }
         GLES30.glAttachShader(programId, vertexShader)
         GLES30.glAttachShader(programId, fragmentShader)
         GLES30.glLinkProgram(programId)
-        
         val linkStatus = IntArray(1)
         GLES30.glGetProgramiv(programId, GLES30.GL_LINK_STATUS, linkStatus, 0)
         if (linkStatus[0] == 0) {
-            val log = GLES30.glGetProgramInfoLog(programId)
-            Log.e(TAG, "Program link error: $log")
-            GLES30.glDeleteProgram(programId)
-            programId = 0
-            return false
+            val log = GLES30.glGetProgramInfoLog(programId); Log.e(TAG, "Link error: $log")
+            GLES30.glDeleteProgram(programId); programId = 0; return false
         }
-        
-        GLES30.glDeleteShader(vertexShader)
-        GLES30.glDeleteShader(fragmentShader)
+        GLES30.glDeleteShader(vertexShader); GLES30.glDeleteShader(fragmentShader)
         return true
     }
 
     private fun compileShader(type: Int, source: String): Int {
         val shaderId = GLES30.glCreateShader(type)
         if (shaderId == 0) return 0
-        
         GLES30.glShaderSource(shaderId, source)
         GLES30.glCompileShader(shaderId)
-        
         val compileStatus = IntArray(1)
         GLES30.glGetShaderiv(shaderId, GLES30.GL_COMPILE_STATUS, compileStatus, 0)
         if (compileStatus[0] == 0) {
-            val log = GLES30.glGetShaderInfoLog(shaderId)
-            Log.e(TAG, "Shader compile error: $log")
-            GLES30.glDeleteShader(shaderId)
-            return 0
+            val log = GLES30.glGetShaderInfoLog(shaderId); Log.e(TAG, "Compile error: $log")
+            GLES30.glDeleteShader(shaderId); return 0
         }
         return shaderId
     }
 
-    fun use() {
-        GLES30.glUseProgram(programId)
+    fun use() { GLES30.glUseProgram(programId) }
+
+    fun setUniform(name: String, value: Float) { GLES30.glUniform1f(getUniformLocation(name), value) }
+    fun setUniform(name: String, value: Int) { GLES30.glUniform1i(getUniformLocation(name), value) }
+    fun setUniform3f(name: String, x: Float, y: Float, z: Float) { GLES30.glUniform3f(getUniformLocation(name), x, y, z) }
+    fun setUniform4f(name: String, x: Float, y: Float, z: Float, w: Float) { GLES30.glUniform4f(getUniformLocation(name), x, y, z, w) }
+    fun setUniformMat4(name: String, matrix: Mat4) { GLES30.glUniformMatrix4fv(getUniformLocation(name), 1, false, matrix.toFloatArray(), 0) }
+
+    private fun getUniformLocation(name: String): Int = uniformLocations.getOrPut(name) {
+        GLES30.glGetUniformLocation(programId, name)
     }
 
-    fun setUniform(name: String, value: Float) {
-        val location = getUniformLocation(name)
-        GLES30.glUniform1f(location, value)
-    }
-
-    fun setUniform(name: String, value: Int) {
-        val location = getUniformLocation(name)
-        GLES30.glUniform1i(location, value)
-    }
-
-    fun setUniform(name: String, value: Boolean) {
-        setUniform(name, if (value) 1 else 0)
-    }
-
-    fun setUniform3f(name: String, x: Float, y: Float, z: Float) {
-        val location = getUniformLocation(name)
-        GLES30.glUniform3f(location, x, y, z)
-    }
-
-    fun setUniform4f(name: String, x: Float, y: Float, z: Float, w: Float) {
-        val location = getUniformLocation(name)
-        GLES30.glUniform4f(location, x, y, z, w)
-    }
-
-    fun setUniformMat4(name: String, matrix: Mat4) {
-        val location = getUniformLocation(name)
-        GLES30.glUniformMatrix4fv(location, 1, false, matrix.toFloatArray(), 0)
-    }
-
-    fun getAttributeLocation(name: String): Int {
-        return GLES30.glGetAttribLocation(programId, name)
-    }
-
-    private fun getUniformLocation(name: String): Int {
-        return uniformLocations.getOrPut(name) {
-            GLES30.glGetUniformLocation(programId, name)
-        }
-    }
+    fun getAttributeLocation(name: String): Int = GLES30.glGetAttribLocation(programId, name)
 
     fun delete() {
-        if (programId != 0) {
-            GLES30.glDeleteProgram(programId)
-            programId = 0
-        }
+        if (programId != 0) { GLES30.glDeleteProgram(programId); programId = 0 }
         uniformLocations.clear()
     }
 
